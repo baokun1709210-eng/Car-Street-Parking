@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>KUN STREET RACING</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080b10;color:#fff;font-family:Arial,sans-serif}canvas{display:block}
+#load{position:fixed;inset:0;z-index:5;display:grid;place-items:center;text-align:center;background:radial-gradient(circle,#1c2632,#080b10 70%)}h1{color:#ff3944;letter-spacing:4px}#status{color:#ccd2da;font-size:13px}.hud{position:fixed;inset:0;pointer-events:none;display:none}.top{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between}.panel{background:#080b10d9;border:1px solid #ff394488;border-radius:10px;padding:9px 12px;font-size:11px}.brand{color:#ff3944;font-weight:900;letter-spacing:2px}.speed{position:absolute;bottom:18px;left:15px;background:#080b10dd;border:1px solid #ff3944;border-radius:12px;padding:9px 14px}.speed b{font-size:34px}.speed small{display:block;color:#ff3944;letter-spacing:2px}.controls{position:absolute;bottom:18px;right:14px;display:flex;gap:8px;align-items:end;pointer-events:auto}.ctrl{width:58px;height:60px;border-radius:14px;border:1px solid #ffffff55;background:#17212dcc;color:white;font-weight:bold;touch-action:none}.ctrl:active,.ctrl.on{background:#b51f2b}.pedals .ctrl{height:72px;width:64px;font-size:11px}.gas{background:#98202acc}.actions{position:absolute;right:12px;top:62px;display:flex;gap:7px;pointer-events:auto}.actions button{background:#101720dd;border:1px solid #ff394488;color:white;border-radius:8px;padding:8px}.hint{position:absolute;top:62px;left:12px;font-size:10px;color:#d2d7de}@media(max-width:600px){.ctrl{width:52px;height:55px}.pedals .ctrl{width:58px;height:66px}}
+</style>
+</head>
+<body>
+<div id="load"><div><h1>KUN STREET RACING</h1><div id="status">Đang khởi tạo phố...</div><p style="color:#77818e;font-size:10px;letter-spacing:2px">CITY FREE ROAM · MOBILE + PC</p></div></div>
+<div class="hud" id="hud"><div class="top"><div class="panel"><div class="brand">KUN / STREET</div><span id="gear">GEAR 1 · 0 KM/H</span></div><div class="panel">CITY FREE ROAM</div></div><div class="hint">WASD / phím mũi tên · Space: phanh · C: camera</div><div class="actions"><button id="cam">CAMERA</button><button id="reset">RESET</button></div><div class="speed"><b id="speed">000</b><small>KM/H</small></div><div class="controls"><button class="ctrl" data-key="left">◀</button><button class="ctrl" data-key="right">▶</button><div class="pedals"><button class="ctrl" data-key="brake">BRAKE</button><button class="ctrl gas" data-key="gas">GAS</button></div></div></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const $=s=>document.querySelector(s),keys={gas:false,brake:false,left:false,right:false};
+let scene,camera,renderer,carRoot,car,speed=0,yaw=0,steer=0,camMode=0,wheels=[];
+const status=$('#status');
+scene=new THREE.Scene();scene.background=new THREE.Color(0x9aabb8);scene.fog=new THREE.Fog(0x9aabb8,180,1000);
+camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,2500);
+renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdcecff,0x55515a,2));
+const sun=new THREE.DirectionalLight(0xffe4c2,2.4);sun.position.set(100,180,90);sun.castShadow=true;scene.add(sun);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),new THREE.MeshStandardMaterial({color:0x41484b,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.2;floor.receiveShadow=true;scene.add(floor);
+function makeFallbackCar(){const g=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(2,0.65,4.2),new THREE.MeshStandardMaterial({color:0xc51f35,metalness:.65,roughness:.28}));body.position.y=.72;g.add(body);const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.55,.65,1.8),new THREE.MeshStandardMaterial({color:0x17232e,metalness:.3,roughness:.2}));cabin.position.set(0,1.32,-.25);g.add(cabin);for(const x of [-.95,.95])for(const z of [-1.35,1.35]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.28,20),new THREE.MeshStandardMaterial({color:0x111111,roughness:.9}));w.rotation.z=Math.PI/2;w.position.set(x,.43,z);g.add(w);wheels.push(w)}return g}
+function ready(){status.textContent='Sẵn sàng!';$('#load').style.display='none';$('#hud').style.display='block'}
+function setupCar(obj){car=obj;const box=new THREE.Box3().setFromObject(car),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());car.position.sub(center);const scale=1.65/Math.max(size.y,.01);car.scale.setScalar(scale);const b=new THREE.Box3().setFromObject(car);car.position.y-=b.min.y;carRoot=new THREE.Group();carRoot.add(car);carRoot.position.y=.03;scene.add(carRoot);car.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material?.map)o.material.map.colorSpace=THREE.SRGBColorSpace;if(/wheel|tire|tyre|rim/i.test(o.name))wheels.push(o)}});ready()}
+status.textContent='Đang tải Silvia S14...';
+new GLTFLoader().load('./assets/car/source/Silvia%20S14%20URAS%20Slime.glb',g=>setupCar(g.scene),undefined,()=>{status.textContent='Không thấy model xe — dùng xe mẫu';setupCar(makeFallbackCar())});
+new FBXLoader().load('./assets/city/source/city-cpm.fbx',obj=>{const manager=new THREE.LoadingManager();},undefined,()=>{});
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);if(carRoot){speed+=(keys.gas?22:keys.brake?-45:-9)*dt;speed=THREE.MathUtils.clamp(speed,-10,keys.gas?44:0);if(keys.brake&&speed<1)speed=0;const input=(keys.left?1:0)-(keys.right?1:0);steer=THREE.MathUtils.damp(steer,input,8,dt);yaw+=steer*dt*(.5+Math.abs(speed)*.025)*(speed>=0?1:-1);carRoot.rotation.y=yaw;carRoot.position.x+=Math.sin(yaw)*speed*dt*.42;carRoot.position.z+=Math.cos(yaw)*speed*dt*.42;wheels.forEach(w=>w.rotation.x+=speed*dt*.8);const back=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const target=camMode?carRoot.position.clone().add(new THREE.Vector3(0,1.7,0)).add(back.clone().multiplyScalar(1)):carRoot.position.clone().add(new THREE.Vector3(-back.x*9,4,-back.z*9));camera.position.lerp(target,1-Math.pow(.001,dt));camera.lookAt(carRoot.position.clone().add(new THREE.Vector3(0,1,0)).add(back.clone().multiplyScalar(camMode?12:4)));$('#speed').textContent=String(Math.round(Math.abs(speed)*3.6)).padStart(3,'0');$('#gear').textContent='GEAR '+(speed< -1?'R':speed>18?'3':speed>6?'2':'1')+' · '+Math.round(Math.abs(speed)*3.6)+' KM/H'}renderer.render(scene,camera)}
+animate();
+function bind(el,k){const down=e=>{e.preventDefault();keys[k]=true;el.classList.add('on')},up=e=>{e.preventDefault();keys[k]=false;el.classList.remove('on')};el.addEventListener('pointerdown',down);['pointerup','pointercancel','pointerleave'].forEach(n=>el.addEventListener(n,up))}
+document.querySelectorAll('[data-key]').forEach(b=>bind(b,b.dataset.key));
+const map={ArrowUp:'gas',KeyW:'gas',ArrowDown:'brake',KeyS:'brake',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'brake'};
+addEventListener('keydown',e=>{if(map[e.code]){keys[map[e.code]]=true;e.preventDefault()}if(e.code==='KeyC')camMode=(camMode+1)%2});
+addEventListener('keyup',e=>{if(map[e.code])keys[map[e.code]]=false});
+$('#cam').onclick=()=>camMode=(camMode+1)%2;$('#reset').onclick=()=>{if(carRoot){carRoot.position.set(0,.03,0);yaw=0;speed=0}};
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script></body></html>
