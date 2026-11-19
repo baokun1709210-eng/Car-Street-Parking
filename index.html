@@ -26,9 +26,48 @@ function loadCar(){progress('Đang tải Silvia S14 URAS Slime (GLB)...',72);new
 function setupCar(obj){car=obj;car.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){if(o.material.map)o.material.map.colorSpace=THREE.SRGBColorSpace;o.material.needsUpdate=true}if(/wheel|tire|tyre|rim/i.test(o.name))wheels.push(o)}});const box=new THREE.Box3().setFromObject(car),size=box.getSize(new THREE.Vector3()),c=box.getCenter(new THREE.Vector3());car.position.sub(c);car.scale.setScalar(1.65/Math.max(size.y,.01));const scaled=new THREE.Box3().setFromObject(car);car.position.y-=scaled.min.y;carRoot=new THREE.Group();carRoot.add(car);carRoot.position.set(0,.03,0);scene.add(carRoot);showGame()}
 progress('Đang tải bản đồ City 3D (FBX)...',4);
 const manager=new THREE.LoadingManager();
-manager.setURLModifier(url=>{const raw=decodeURIComponent(url.split(/[?#]/)[0]);const name=raw.split(/[\\/]/).pop();return './assets/city/textures/'+encodeURIComponent(name)});
+manager.setURLModifier(url=>{
+ const clean=decodeURIComponent(url.split(/[?#]/)[0]);
+ if (/^(data:|blob:|https?:)/i.test(clean)) return url;
+ const name=clean.split(/[\\/]/).pop();
+ if (/\\.(png|jpe?g|webp|bmp|tga|tif|tiff)$/i.test(name)) {
+  return './assets/city/textures/'+encodeURIComponent(name);
+ }
+ return url;
+});
 manager.onError=url=>console.warn('Missing city texture:',url);
-new FBXLoader(manager).load('./assets/city/source/city-cpm.fbx',obj=>{city=obj;city.name='CITY_MAP';city.traverse(o=>{if(o.isMesh){o.frustumCulled=true;o.castShadow=false;o.receiveShadow=true;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>{if(m.map)m.map.colorSpace=THREE.SRGBColorSpace;m.needsUpdate=true})}}});const bounds=new THREE.Box3().setFromObject(city),center=bounds.getCenter(new THREE.Vector3()),min=bounds.min;city.position.x-=center.x;city.position.z-=center.z;city.position.y-=min.y;scene.add(city);fallback.visible=false;progress('Đã nạp thành phố · Đang tải xe...',68);loadCar()},xhr=>{if(xhr.total)progress('Đang tải thành phố '+Math.round(xhr.loaded/xhr.total*100)+'%',4+Math.round(xhr.loaded/xhr.total*62))},e=>{console.error(e);progress('Không tải được map FBX · dùng sân tập',50);loadCar()});
+new FBXLoader(manager).load('./assets/city/source/city-cpm.fbx',obj=>{city=obj;city.name='CITY_MAP';city.traverse(o=>{
+ if(!o.isMesh)return;
+ o.visible=true;
+ o.frustumCulled=false;
+ o.castShadow=true;
+ o.receiveShadow=true;
+ if(o.material){
+  const ms=Array.isArray(o.material)?o.material:[o.material];
+  ms.forEach(m=>{
+   m.visible=true;
+   m.side=THREE.DoubleSide;
+   if(m.map){m.map.colorSpace=THREE.SRGBColorSpace;m.map.needsUpdate=true}
+   m.needsUpdate=true;
+  });
+ }
+});
+const bounds=new THREE.Box3().setFromObject(city);
+if(bounds.isEmpty()){throw new Error('FBX không có geometry hiển thị')}
+const center=bounds.getCenter(new THREE.Vector3()),min=bounds.min.clone(),size=bounds.getSize(new THREE.Vector3());
+city.position.set(-center.x,-min.y,-center.z);
+scene.add(city);
+city.updateMatrixWorld(true);
+const finalBounds=new THREE.Box3().setFromObject(city);
+const finalSize=finalBounds.getSize(new THREE.Vector3());
+console.info('[CITY MAP DIAGNOSTIC]',{meshCount:city.children.length,before:size,after:finalSize,center});
+scene.fog=null;
+camera.far=Math.max(10000,finalSize.length()*3);
+camera.updateProjectionMatrix();
+fallback.visible=false;
+$('#mapstate').textContent='CITY LOADED · '+finalSize.x.toFixed(0)+' × '+finalSize.z.toFixed(0);
+progress('Đã nạp thành phố · Đang tải xe...',68);
+loadCar()},xhr=>{if(xhr.total)progress('Đang tải thành phố '+Math.round(xhr.loaded/xhr.total*100)+'%',4+Math.round(xhr.loaded/xhr.total*62))},e=>{console.error(e);progress('Không tải được map FBX · dùng sân tập',50);loadCar()});
 const clock=new THREE.Clock();
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);if(carRoot){speed+=(keys.gas?24:keys.brake?-48:-10)*dt;speed=THREE.MathUtils.clamp(speed,-12,keys.gas?42:0);if(keys.brake&&speed<1)speed=0;const input=(keys.left?1:0)-(keys.right?1:0);steer=THREE.MathUtils.damp(steer,input,8,dt);yaw+=steer*dt*(.45+Math.abs(speed)*.025)*(speed>=0?1:-1);carRoot.rotation.y=yaw;carRoot.position.x+=Math.sin(yaw)*speed*dt*.42;carRoot.position.z+=Math.cos(yaw)*speed*dt*.42;wheels.forEach(w=>w.rotation.x+=speed*dt*.8);const back=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const target=camMode?carRoot.position.clone().add(new THREE.Vector3(0,1.65,0)).add(back.clone()):carRoot.position.clone().add(new THREE.Vector3(-back.x*9,4.1,-back.z*9));camera.position.lerp(target,1-Math.pow(.001,dt));camera.lookAt(carRoot.position.clone().add(new THREE.Vector3(0,1.1,0)).add(back.clone().multiplyScalar(camMode?12:4)));$('#speed').textContent=String(Math.round(Math.abs(speed)*3.6)).padStart(3,'0');$('#gear').textContent='GEAR '+(speed< -1?'R':speed>18?'3':speed>6?'2':'1')+' · '+Math.round(Math.abs(speed)*3.6)+' KM/H'}renderer.render(scene,camera)}
 animate();
